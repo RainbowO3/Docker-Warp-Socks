@@ -12,6 +12,13 @@ WARP_SERVER="${WARP_SERVER:-$_WARP_SERVER}"
 WARP_PORT="${WARP_PORT:-$_WARP_PORT}"
 NET_PORT="${NET_PORT:-$_NET_PORT}"
 
+# =================================================================
+# 【核心洗 IP 逻辑】：每次重新部署时，强制清除缓存并重新向 Cloudflare 申请身份
+# =================================================================
+echo "====== 清理旧节点缓存，准备刷新公网出口 IP ======"
+rm -rf /etc/sing-box/config.json
+
+# 抓取全新注册信息，确保拿到不同的出口 IP
 RESPONSE=$(curl -fsSL bit.ly/create-cloudflare-warp | sh -s)
 CF_CLIENT_ID=$(echo "$RESPONSE" | grep -o '"client":"[^"]*' | cut -d'"' -f4 | head -n 1)
 CF_ADDR_V4=$(echo "$RESPONSE" | grep -o '"v4":"[^"]*' | cut -d'"' -f4 | tail -n 1)
@@ -48,7 +55,7 @@ DNS_PART='
                 "server": "dns.quad9.net",
                 "domain_resolver": "local",
                 "detour": "direct-out"
-            },
+            }
             {
                 "tag": "local",
                 "type": "udp",
@@ -67,7 +74,7 @@ ROUTE_PART='
         },
         "rules": [
             {
-                "inbound": "mixed-in",
+                "inbound": ["mixed-in", "http-8080-in"],
                 "action": "sniff"
             },
             {
@@ -126,7 +133,9 @@ PROXY_PART='
     ],
 '
 
-
+# =================================================================
+# 【完美缝合】：在 inbounds 列表里，塞入一个由原生 sing-box 维护的 8080 纯 HTTP 入站
+# =================================================================
 cat <<EOF | tee /etc/sing-box/config.json
 {
     "dns": {
@@ -142,6 +151,12 @@ $ROUTE_PART
             "listen": "::",
 $AUTH_PART
             "listen_port": $NET_PORT
+        },
+        {
+            "type": "http",
+            "tag": "http-8080-in",
+            "listen": "::",
+            "listen_port": 8080
         }
     ],
 $PROXY_PART
@@ -155,8 +170,9 @@ $PROXY_PART
 }
 EOF
 
-if [ ! -e "/usr/bin/rws-cli-v5" ]; then
-    printf '#!/bin/sh\nexec sing-box -c /etc/sing-box/config.json run\n' > /usr/bin/rws-cli-v5 && chmod +x /usr/bin/rws-cli-v5
-fi
+# 强行重写执行脚本
+printf '#!/bin/sh\nexec sing-box -c /etc/sing-box/config.json run\n' > /usr/bin/rws-cli-v5 && chmod +x /usr/bin/rws-cli-v5
+
+echo "====== 原生 8080 HTTP 代理入站配置成功，启动系统 ======"
 
 exec "$@"
