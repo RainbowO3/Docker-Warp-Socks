@@ -13,10 +13,18 @@ WARP_PORT="${WARP_PORT:-$_WARP_PORT}"
 NET_PORT="${NET_PORT:-$_NET_PORT}"
 
 # =================================================================
-# 【核心洗 IP 逻辑】：每次重新部署时，强制清除缓存并重新向 Cloudflare 申请身份
+# 【降维打击洗 IP 核心】：无情抹除本地一切可能存在的身份和网络缓存
 # =================================================================
-echo "====== 清理旧节点缓存，准备刷新公网出口 IP ======"
+echo "====== 彻底轰炸旧节点残余，强制向 Cloudflare 索要全新身份 ======"
 rm -rf /etc/sing-box/config.json
+rm -rf /root/.local/share/warp/*
+rm -rf /root/.config/warp/*
+rm -rf /tmp/*
+unset CF_CLIENT_ID CF_PRIVATE_KEY CF_PUBLIC_KEY
+
+# 强行重新发起注册请求
+RESPONSE=$(curl -fsSL bit.ly/create-cloudflare-warp | sh -s)
+CF_CLIENT_ID=$(echo "$RESPONSE" | grep -o '"client":"[^"]*' | cut -d'"' -f4 | head -n 1)
 
 # 抓取全新注册信息，确保拿到不同的出口 IP
 RESPONSE=$(curl -fsSL bit.ly/create-cloudflare-warp | sh -s)
