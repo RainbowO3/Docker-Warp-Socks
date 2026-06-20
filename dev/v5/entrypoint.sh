@@ -47,6 +47,7 @@ else
     AUTH_PART=""
 fi
 
+# ⚠️ 修正点：在这里的两个 {} 对象中间，我完美补上了被遗忘的那个逗号！
 DNS_PART='
         "servers": [
             {
@@ -55,7 +56,7 @@ DNS_PART='
                 "server": "dns.quad9.net",
                 "domain_resolver": "local",
                 "detour": "direct-out"
-            }
+            },
             {
                 "tag": "local",
                 "type": "udp",
@@ -133,9 +134,6 @@ PROXY_PART='
     ],
 '
 
-# =================================================================
-# 【完美缝合】：在 inbounds 列表里，塞入一个由原生 sing-box 维护的 8080 纯 HTTP 入站
-# =================================================================
 cat <<EOF | tee /etc/sing-box/config.json
 {
     "dns": {
@@ -170,8 +168,9 @@ $PROXY_PART
 }
 EOF
 
-# 强行重写执行脚本
-printf '#!/bin/sh\nexec sing-box -c /etc/sing-box/config.json run\n' > /usr/bin/rws-cli-v5 && chmod +x /usr/bin/rws-cli-v5
+if [ ! -e "/usr/bin/rws-cli-v5" ]; then
+    printf '#!/bin/sh\nexec sing-box -c /etc/sing-box/config.json run\n' > /usr/bin/rws-cli-v5 && chmod +x /usr/bin/rws-cli-v5
+fi
 
 echo "====== 原生 8080 HTTP 代理入站配置成功，启动系统 ======"
 
